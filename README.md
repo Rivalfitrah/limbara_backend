@@ -1,4 +1,4 @@
-# 🍃 Limbara Backend
+# Limbara Backend
 
 ## 🚀 Teknologi yang Digunakan
 

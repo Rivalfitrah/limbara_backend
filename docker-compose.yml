@@ -1,0 +1,46 @@
+services:
+  limbara-api:
+    container_name: limbara-api
+    build:
+      context: .
+      dockerfile: dockerfile
+    ports:
+      - "8005:8000"
+    
+    # Resource limits untuk VPS 2GB RAM
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'          # Gunakan max 1.5 CPU dari 2 yang tersedia
+          memory: 1024M        # Max 1GB untuk app (reserve 1GB untuk OS & buffer)
+        reservations:
+          cpus: '1'
+          memory: 512M         # Minimum 512MB
+    
+    # Environment variables
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    
+    # Catatan: Bagian 'volumes' untuk persistent uploads dihapus. 
+    # Container kini murni stateless (hanya memproses logika).
+    
+    # Health check untuk monitoring status kontainer
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Auto restart jika container crash
+    restart: unless-stopped
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

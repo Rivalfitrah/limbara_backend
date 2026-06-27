@@ -62,18 +62,84 @@ async def generate_waste_insight(detected_classes: list) -> dict:
         "ringkasan_bahaya": "Satu paragraf (2-3 kalimat) dampak lingkungan spesifik dari {item_names_str}.",
         "cara_buang": "Satu kalimat panduan praktis cara membuang sampah ini.",
         "ide_daur_ulang": [
-            {{
-                "judul_ide": "Nama produk hasil daur ulang (misal: Pot Bunga Gantung Estetik)",
-                "bahan_bahan": [
-                    "Bahan 1 (misal: 1 buah botol plastik)",
-                    "Bahan 2"
-                ],
-                "tahapan_pembuatan": [
-                    "Langkah 1: Potong bagian atas...",
-                    "Langkah 2: Lubangi bagian bawah..."
-                ]
-            }}
-        ],
+        {{
+            "judul_ide": "Nama hasil kerajinan",
+
+            "deskripsi": "Penjelasan singkat mengenai fungsi hasil akhirnya.",
+
+            "estimasi_waktu": "contoh: 30-45 menit",
+
+            "tingkat_kesulitan": "Mudah | Sedang | Sulit",
+
+            "alat_yang_diperlukan": [
+                "Gunting",
+                "Cutter",
+                "Penggaris",
+                "Spidol",
+                "Lem tembak"
+            ],
+
+            "bahan_bahan": [
+                "1 botol plastik bekas ukuran 1,5 L",
+                "Tanah",
+                "Bibit tanaman",
+                "Tali nilon ±1 meter",
+                "Cat akrilik (opsional)"
+            ],
+
+            "persiapan": [
+                "Cuci botol hingga bersih menggunakan sabun.",
+                "Lepaskan label botol agar permukaan lebih rapi.",
+                "Keringkan botol sebelum dipotong.",
+                "Siapkan seluruh alat di meja kerja."
+            ],
+
+            "tahapan_pembuatan": [
+  {
+    "langkah": 1,
+    "judul": "Membersihkan botol",
+    "tujuan": "Menghilangkan kotoran agar hasil kerajinan lebih bersih dan lem dapat menempel dengan baik.",
+    "instruksi": [
+      "Lepaskan tutup dan label botol secara perlahan.",
+      "Cuci bagian dalam dan luar menggunakan air serta sabun.",
+      "Bilas hingga tidak ada sisa sabun.",
+      "Keringkan menggunakan kain atau angin-anginkan sekitar 10–15 menit."
+    ],
+    "tips": "Pastikan botol benar-benar kering sebelum dipotong."
+  },
+  {
+    "langkah": 2,
+    "judul": "Membuat pola potongan",
+    "tujuan": "Agar bentuk pot simetris dan rapi.",
+    "instruksi": [
+      "Letakkan botol dalam posisi tidur di atas meja datar.",
+      "Gunakan penggaris untuk mengukur area sepanjang sekitar 15 cm di bagian tengah botol.",
+      "Buat garis menggunakan spidol permanen mengikuti bentuk persegi panjang atau oval sesuai desain yang diinginkan."
+    ],
+    "tips": "Gunakan spidol berwarna gelap agar garis mudah terlihat saat memotong."
+  },
+  {
+    "langkah": 3,
+    "judul": "Memotong botol",
+    "tujuan": "Membuat lubang utama yang akan menjadi tempat tanaman.",
+    "instruksi": [
+      "Tusukkan ujung cutter secara perlahan pada salah satu sudut pola hingga terbentuk lubang kecil.",
+      "Masukkan ujung gunting ke lubang tersebut.",
+      "Potong mengikuti garis yang telah dibuat secara perlahan.",
+      "Jangan memotong terlalu cepat agar hasil tetap rapi."
+    ],
+    "tips": "Jika pengguna masih anak-anak, lakukan langkah ini dengan bantuan orang dewasa."
+  }
+]
+
+            "tips": [
+                "Gunakan cutter dengan hati-hati dan jauhkan dari anak-anak.",
+                "Cat botol setelah benar-benar kering agar cat lebih awet.",
+                "Pastikan lubang drainase tidak tersumbat."
+            ],
+
+            "hasil_akhir": "Pot gantung dari botol plastik yang dapat digunakan untuk tanaman hias maupun tanaman herbal."
+        }}
         "fakta_menarik": "Satu fakta mengejutkan tentang {item_names_str}.",
         "tingkat_bahaya": "rendah | sedang | tinggi",
         "dapat_didaur_ulang": true

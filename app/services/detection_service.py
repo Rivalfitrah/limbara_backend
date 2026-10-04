@@ -8,14 +8,12 @@ from pydantic import BaseModel
 from fastapi import UploadFile
 from ultralytics import YOLO
 
-from google import genai
 from google.genai import types
 
+from app.config.gemini_config import GEMINI_MODEL, get_gemini_client
 from app.services.upload_service import upload_image_to_cloudinary
 
 MODEL_PATH = "app/models/best_model.pt" 
-
-client = genai.Client()
 
 # Memuat model YOLOv8
 try:
@@ -87,8 +85,8 @@ async def process_image_and_detect(file: UploadFile):
                 4. Pastikan 'detected_class_names' berisi daftar unik dari 'className' yang ditemukan.
                 """
 
-                response = client.models.generate_content(
-                    model='gemini-3.1-flash-lite',
+                response = get_gemini_client().models.generate_content(
+                    model=GEMINI_MODEL,
                     contents=[raw_image, prompt_instruction],
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",

@@ -1,4 +1,22 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: limbara-postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - limbara_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   limbara-api:
     container_name: limbara-api
     build:
@@ -23,6 +41,9 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
+    depends_on:
+      postgres:
+        condition: service_healthy
     
     # Catatan: Bagian 'volumes' untuk persistent uploads dihapus. 
     # Container kini murni stateless (hanya memproses logika).
@@ -44,3 +65,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  limbara_postgres_data:

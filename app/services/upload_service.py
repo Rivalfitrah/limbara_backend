@@ -1,6 +1,7 @@
 import cv2
 import cloudinary.uploader
 
+# tes
 def upload_image_to_cloudinary(image_array) -> str:
     """
     Menerima gambar dalam bentuk Numpy Array (hasil OpenCV), 

@@ -1,20 +1,22 @@
+import hashlib
 import os
 import secrets
-import hashlib
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlparse
 
 import httpx
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, Response, status
 from jose import JWTError, jwt
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.models import User
+from app.models import AuthAccount, User, UserSession
+from app.schemas.auth import LoginRequest, RegisterRequest
 
 ALGORITHM = "HS256"
-COOKIE_NAME = "limbara_access_token"
+LEGACY_COOKIE_NAME = "limbara_access_token"
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
@@ -43,6 +45,161 @@ def create_session_token() -> str:
 
 def hash_session_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+_DUMMY_PASSWORD_HASH = hash_password("limbara-dummy-password")
+
+
+def require_trusted_origin(request: Request) -> None:
+    origin = request.headers.get("origin")
+    if not origin:
+        return
+
+    allowed_origins = {get_frontend_url()}
+    allowed_origins.update(
+        item.strip().rstrip("/")
+        for item in os.getenv("ALLOWED_ORIGINS", "").split(",")
+        if item.strip()
+    )
+    if origin.rstrip("/") not in allowed_origins:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Origin permintaan tidak diizinkan.")
+
+
+def register_manual_user(session: Session, payload: RegisterRequest) -> User:
+    existing_user = session.exec(select(User).where(User.email == payload.email)).first()
+    if existing_user is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Akun tidak dapat dibuat dengan data tersebut.",
+        )
+
+    now = datetime.now(timezone.utc)
+    user = User(
+        email=payload.email,
+        name=payload.name,
+        email_verified_at=None,
+        last_login_at=now,
+    )
+    session.add(user)
+
+    try:
+        session.flush()
+        session.add(
+            AuthAccount(
+                user_id=user.id,
+                provider="LOCAL",
+                password_hash=hash_password(payload.password),
+            )
+        )
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Akun tidak dapat dibuat dengan data tersebut.",
+        ) from error
+
+    session.refresh(user)
+    return user
+
+
+def authenticate_manual_user(session: Session, payload: LoginRequest) -> User:
+    statement = (
+        select(User, AuthAccount)
+        .join(AuthAccount, AuthAccount.user_id == User.id)
+        .where(User.email == payload.email, AuthAccount.provider == "LOCAL")
+    )
+    result = session.exec(statement).first()
+    password_hash = result[1].password_hash if result else _DUMMY_PASSWORD_HASH
+
+    if result is None or password_hash is None or not verify_password(password_hash, payload.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email atau password tidak valid.",
+        )
+
+    user, account = result
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email atau password tidak valid.",
+        )
+
+    if password_hasher.check_needs_rehash(account.password_hash):
+        account.password_hash = hash_password(payload.password)
+        session.add(account)
+
+    user.last_login_at = datetime.now(timezone.utc)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def create_user_session(session: Session, user: User, user_agent: str | None = None) -> str:
+    token = create_session_token()
+    now = datetime.now(timezone.utc)
+    session.add(
+        UserSession(
+            user_id=user.id,
+            token_hash=hash_session_token(token),
+            expires_at=now + timedelta(days=7),
+            last_seen_at=now,
+            user_agent=user_agent[:512] if user_agent else None,
+        )
+    )
+    session.commit()
+    return token
+
+
+def get_user_from_session_token(session: Session, token: str) -> User | None:
+    stored_session = session.exec(
+        select(UserSession).where(UserSession.token_hash == hash_session_token(token))
+    ).first()
+    if stored_session is None or stored_session.revoked_at is not None:
+        return None
+
+    expires_at = stored_session.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    if expires_at <= now:
+        return None
+
+    user = session.get(User, stored_session.user_id)
+    if user is None or not user.is_active:
+        return None
+
+    last_seen_at = stored_session.last_seen_at
+    if last_seen_at.tzinfo is None:
+        last_seen_at = last_seen_at.replace(tzinfo=timezone.utc)
+    if now - last_seen_at >= timedelta(minutes=15):
+        stored_session.last_seen_at = now
+        session.add(stored_session)
+        session.commit()
+    return user
+
+
+def revoke_session_token(session: Session, token: str) -> None:
+    stored_session = session.exec(
+        select(UserSession).where(UserSession.token_hash == hash_session_token(token))
+    ).first()
+    if stored_session is None or stored_session.revoked_at is not None:
+        return
+    stored_session.revoked_at = datetime.now(timezone.utc)
+    session.add(stored_session)
+    session.commit()
+
+
+def revoke_all_user_sessions(session: Session, user: User) -> None:
+    active_sessions = session.exec(
+        select(UserSession).where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+    ).all()
+    now = datetime.now(timezone.utc)
+    for stored_session in active_sessions:
+        stored_session.revoked_at = now
+        session.add(stored_session)
+    session.commit()
 
 
 def get_frontend_url() -> str:
@@ -137,55 +294,105 @@ async def fetch_google_profile(code: str) -> dict:
 
 
 def upsert_google_user(session: Session, profile: dict) -> User:
-    user = session.exec(select(User).where(User.google_id == profile["sub"])).first()
+    subject = profile["sub"]
+    email = normalize_email(profile["email"])
+    account = session.exec(
+        select(AuthAccount).where(
+            AuthAccount.provider == "GOOGLE",
+            AuthAccount.provider_subject == subject,
+        )
+    ).first()
+    user = session.get(User, account.user_id) if account else None
+
     if user is None:
+        if session.exec(select(User).where(User.email == email)).first() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email telah digunakan oleh metode login lain.",
+            )
+
         user = User(
-            google_id=profile["sub"],
-            email=profile["email"],
-            name=profile.get("name") or profile["email"].split("@")[0],
+            google_id=subject,
+            email=email,
+            name=profile.get("name") or email.split("@")[0],
             avatar_url=profile.get("picture"),
+            email_verified_at=datetime.now(timezone.utc),
+            last_login_at=datetime.now(timezone.utc),
         )
         session.add(user)
+        session.flush()
+        session.add(
+            AuthAccount(
+                user_id=user.id,
+                provider="GOOGLE",
+                provider_subject=subject,
+            )
+        )
     else:
-        user.email = profile["email"]
+        user.google_id = subject
+        user.email = email
         user.name = profile.get("name") or user.name
         user.avatar_url = profile.get("picture") or user.avatar_url
+        user.email_verified_at = user.email_verified_at or datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(timezone.utc)
         session.add(user)
-    session.commit()
+
+    try:
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Akun Google tidak dapat dihubungkan.",
+        ) from error
     session.refresh(user)
     return user
 
 
-def create_access_token(user: User) -> str:
-    payload = {
-        "sub": str(user.id),
-        "email": user.email,
-        "exp": datetime.now(timezone.utc) + timedelta(days=7),
-    }
-    return jwt.encode(payload, get_jwt_secret(), algorithm=ALGORITHM)
+def get_session_cookie_name() -> str:
+    return "__Host-limbara_session" if cookie_options()["secure"] else "limbara_session"
 
 
-def get_current_user(request: Request, session: Session) -> User:
-    token = request.cookies.get(COOKIE_NAME)
+def set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(get_session_cookie_name(), token, **cookie_options())
+
+
+def clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie(get_session_cookie_name(), path="/", secure=cookie_options()["secure"])
+    response.delete_cookie(LEGACY_COOKIE_NAME, path="/")
+
+
+def _get_legacy_jwt_user(request: Request, session: Session) -> User | None:
+    token = request.cookies.get(LEGACY_COOKIE_NAME)
     if not token:
-        authorization = request.headers.get("Authorization", "")
-        if authorization.startswith("Bearer "):
-            token = authorization.removeprefix("Bearer ")
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Autentikasi diperlukan.")
+        return None
 
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[ALGORITHM])
         user_id = payload["sub"]
-    except (JWTError, KeyError) as error:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesi tidak valid atau sudah berakhir.") from error
+    except (JWTError, KeyError):
+        return None
+    return session.get(User, user_id)
 
-    user = session.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Pengguna tidak ditemukan.")
+
+def get_current_user(request: Request, session: Session) -> User:
+    token = request.cookies.get(get_session_cookie_name())
+    user = get_user_from_session_token(session, token) if token else _get_legacy_jwt_user(request, session)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesi tidak valid atau sudah berakhir.")
     return user
 
 
 def cookie_options() -> dict:
     secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
-    return {"httponly": True, "secure": secure, "samesite": "none" if secure else "lax", "max_age": 60 * 60 * 24 * 7, "path": "/"}
+    configured_samesite = os.getenv("COOKIE_SAMESITE", "none" if secure else "lax").lower()
+    samesite = configured_samesite if configured_samesite in {"lax", "strict", "none"} else "lax"
+    if samesite == "none" and not secure:
+        samesite = "lax"
+    return {
+        "httponly": True,
+        "secure": secure,
+        "samesite": samesite,
+        "max_age": 60 * 60 * 24 * 7,
+        "path": "/",
+    }

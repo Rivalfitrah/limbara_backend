@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import create_db_and_tables
 from app.routes import auth_route, chat_route, detection_route, fasilitas_route, history_route
 from app.config.cloudinary_config import init_cloudinary
 from app.services.fasilitas_service import fasilitas_service
@@ -13,7 +12,6 @@ init_cloudinary()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    create_db_and_tables()
     total_facilities = fasilitas_service.load()
     print(f"Data fasilitas BSU 2025 dimuat: {total_facilities} titik dari {fasilitas_service.excel_path}")
     yield

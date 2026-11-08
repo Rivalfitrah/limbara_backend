@@ -29,5 +29,5 @@ RUN mkdir -p /app/static/uploads
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# 8. Jalankan FastAPI dengan workers minimal untuk memory efficiency
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# 8. Terapkan migration lalu jalankan FastAPI dengan workers minimal
+CMD ["sh", "-c", "python -m alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]

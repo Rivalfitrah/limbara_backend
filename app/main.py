@@ -64,4 +64,4 @@ app.include_router(review_route.router, prefix="/api", tags=["Product Reviews"])
 
 @app.get("/")
 def read_root():
-    return {"message": "Server FastAPI Limbara berjalan dengan lancar!"}
+    return {"message": "Server FastAPI Limbara berjalan dengan lancar cuy!"}

@@ -17,6 +17,8 @@ opencv-python-headless
 ultralytics==8.4.50
 python-multipart
 google-genai
+google-auth
 uvicorn
 cloudinary
+pillow
 httpx

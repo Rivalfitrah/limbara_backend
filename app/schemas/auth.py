@@ -14,7 +14,7 @@ def _normalize_and_validate_email(value: str) -> str:
 class RegisterRequest(BaseModel):
     email: str
     name: str = Field(min_length=2, max_length=100)
-    password: str = Field(min_length=10, max_length=128)
+    password: str = Field(min_length=12, max_length=128)
 
     @field_validator("email")
     @classmethod
@@ -28,6 +28,22 @@ class RegisterRequest(BaseModel):
         if len(normalized) < 2:
             raise ValueError("Nama minimal 2 karakter.")
         return normalized
+
+    @field_validator("password")
+    @classmethod
+    def reject_common_password(cls, value: str) -> str:
+        normalized = value.casefold().replace(" ", "")
+        common_passwords = {
+            "password1234",
+            "password12345",
+            "qwerty123456",
+            "123456789012",
+            "admin12345678",
+            "iloveyou1234",
+        }
+        if normalized in common_passwords:
+            raise ValueError("Gunakan password yang lebih sulit ditebak.")
+        return value
 
 
 class LoginRequest(BaseModel):
@@ -47,3 +63,7 @@ class AuthenticatedUser(BaseModel):
     email: str
     name: str
     avatar_url: str | None
+
+
+class RegistrationResponse(BaseModel):
+    message: str

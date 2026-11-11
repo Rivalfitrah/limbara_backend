@@ -30,6 +30,14 @@ class AuthSecurityTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             RegisterRequest(email="user@example.com", name="Budi", password="pendek")
 
+    def test_register_request_rejects_common_password(self):
+        with self.assertRaises(ValidationError):
+            RegisterRequest(email="user@example.com", name="Budi", password="password1234")
+
+    def test_register_request_accepts_twelve_character_passphrase(self):
+        payload = RegisterRequest(email="user@example.com", name="Budi", password="daur ulang!1")
+        self.assertEqual(payload.password, "daur ulang!1")
+
     def test_login_request_rejects_excessively_long_password(self):
         with self.assertRaises(ValidationError):
             LoginRequest(email="user@example.com", password="x" * 129)

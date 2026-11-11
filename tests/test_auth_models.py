@@ -2,13 +2,15 @@ import unittest
 
 from sqlmodel import SQLModel
 
-from app.models import AuthAccount, User, UserSession
+from app.models import AuthAccount, AuthRateLimit, OAuthLoginState, User, UserSession
 
 
 class AuthModelTests(unittest.TestCase):
     def test_auth_tables_are_registered(self):
         self.assertIn(AuthAccount.__tablename__, SQLModel.metadata.tables)
         self.assertIn(UserSession.__tablename__, SQLModel.metadata.tables)
+        self.assertIn(AuthRateLimit.__tablename__, SQLModel.metadata.tables)
+        self.assertIn(OAuthLoginState.__tablename__, SQLModel.metadata.tables)
 
     def test_google_id_is_nullable_during_migration(self):
         self.assertTrue(User.__table__.c.google_id.nullable)

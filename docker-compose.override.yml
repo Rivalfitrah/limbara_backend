@@ -1,0 +1,10 @@
+services:
+  limbara-api:
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./tests:/app/tests
+    command: >-
+      sh -c "python -m alembic upgrade head &&
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --reload"

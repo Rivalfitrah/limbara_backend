@@ -22,6 +22,9 @@ services:
     build:
       context: .
       dockerfile: dockerfile
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "8005:8000"
     
@@ -45,8 +48,12 @@ services:
       postgres:
         condition: service_healthy
     
-    # Catatan: Bagian 'volumes' untuk persistent uploads dihapus. 
-    # Container kini murni stateless (hanya memproses logika).
+    # Bind mount untuk hot-reloading selama development
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./tests:/app/tests
+    command: ["sh", "-c", "python -m alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
     
     # Health check untuk monitoring status kontainer
     healthcheck:

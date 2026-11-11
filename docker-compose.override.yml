@@ -4,6 +4,7 @@ services:
       - ./app:/app/app
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini:ro
+      - ./scripts:/app/scripts
       - ./tests:/app/tests
     command: >-
       sh -c "python -m alembic upgrade head &&
